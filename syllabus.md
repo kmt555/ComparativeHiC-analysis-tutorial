@@ -3,14 +3,15 @@
 
 # Instructors names and contact information
 
-Katarzyna M. Tyc <sup>* </sup> (katarzyna [dot] tyc [at] vcuhealth [dot] org)
-Mikhail G. Dozmorov <sup>* </sup> (mikhail [dot] dozmorov [at] vcuhealth [dot] org)
+Katarzyna M. Tyc<sup>* </sup> (katarzyna [dot] tyc [at] vcuhealth [dot] org)
+
+Mikhail G. Dozmorov<sup>* </sup> (mikhail [dot] dozmorov [at] vcuhealth [dot] org)
 
 <sup>* </sup> Department of Biostatistics, Virginia Commonwealth University, Richmond, Virginia
 
 # Workshop Description
 
-This is an introductory workshop to comparative Hi-C data analysis. The format of the class consists of an introductory lecture followed by hands-on working examples. We will outline steps necessary for raw FASTQ data processing in order to obtain Hi-C contact matrices. The principles of joint normalization will be discussed, along with statistical tests applied to detect statistically significant differences in chromatin interaction frequencies between two or more Hi-C datasets. Participants will learn how to change between various Hi-C data formats. As part of the lab session, participants will perform Hi-C data normalization and generate a list of regions with significanlty different interaction frequencies. We will conclude with examples on how to visualize and interpret the results.
+This is an introductory workshop to comparative Hi-C data analysis. The format of the class consists of an introductory lecture followed by hands-on practical examples. We will outline steps necessary for raw FASTQ data processing in order to obtain Hi-C contact matrices. The principles of joint normalization will be discussed, along with statistical tests applied to detect statistically significant differences in chromatin interaction frequencies between two or more Hi-C datasets. Participants will learn how to change between various Hi-C data formats. As part of the lab session, participants will perform Hi-C data normalization and generate a list of regions with significanlty different interaction frequencies. We will conclude with examples on how to visualize and interpret the results.
 
 ## Pre-requisites
 
@@ -69,11 +70,11 @@ The overall goal of this workshop is to familiarize the participants with the pr
 
 * Describe different formats for Hi-C contact matrices
 
-- .hic format http://aidenlab.org/data.html [developed in Aiden lab]
+  - .hic format http://aidenlab.org/data.html [developed in Aiden lab]
 
-- .cool format ftp://cooler.csail.mit.edu/coolers [developed in Mirny lab]
+  - .cool format ftp://cooler.csail.mit.edu/coolers [developed in Mirny lab]
 
-- plain text, sparse upper-triangular matrix format
+  - plain text, sparse upper-triangular matrix format
 
 * Construct a pipeline for comparative analysis across multiple Hi-C data
 
