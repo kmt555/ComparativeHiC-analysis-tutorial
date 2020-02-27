@@ -37,13 +37,13 @@ Participants are expected to actively participate in the workshop and run the ex
 
 Hi-C comparative analysis:
 
-* HiCcompare
+* [HiCcompare](https://www.bioconductor.org/packages/release/bioc/html/HiCcompare.html)
 
-* multiHiCcompare 
+* [multiHiCcompare](https://bioconductor.org/packages/release/bioc/html/multiHiCcompare.html) 
 
-* diffHic
+* [diffHic](https://bioconductor.org/packages/release/bioc/html/diffHic.html)
 
-* FIND
+* [FIND](https://bitbucket.org/nadhir/find/downloads/)
 
 __Please make sure you have these packages installed before the beginning of the workshop.__
 
@@ -70,9 +70,9 @@ The overall goal of this workshop is to familiarize the participants with the pr
 
 * Describe different formats for Hi-C contact matrices
 
-  - .hic format http://aidenlab.org/data.html [developed in Aiden lab]
+  - `.hic` format [http://aidenlab.org/data.html](http://aidenlab.org/data.html) [developed in Aiden lab]
 
-  - .cool format ftp://cooler.csail.mit.edu/coolers [developed in Mirny lab]
+  - `.cool` format [ftp://cooler.csail.mit.edu/coolers](ftp://cooler.csail.mit.edu/coolers) [developed in Mirny lab]
 
   - plain text, sparse upper-triangular matrix format
 
