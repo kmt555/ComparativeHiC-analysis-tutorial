@@ -6,4 +6,4 @@ With raw Hi-C contact matrices already in hand, the initial pre-processing steps
 
 Please, refer to the `syllabus.md` for prerequisites and learning objectives.
 
-The tutorial has been developed to be presented at the Bioconductor Conference 2020, held during July 29-July 31 in Boston, MA.
+The tutorial has been developed to be presented at the [Bioconductor Conference 2020](https://bioc2020.bioconductor.org/), held during July 29-July 31 in Boston, MA.
