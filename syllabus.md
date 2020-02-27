@@ -11,13 +11,13 @@ Mikhail G. Dozmorov<sup>* </sup> (mikhail [dot] dozmorov [at] vcuhealth [dot] or
 
 # Workshop Description
 
-This is an introductory workshop to comparative Hi-C data analysis. The format of the class consists of an introductory lecture followed by hands-on practical examples. We will outline steps necessary for raw FASTQ data processing in order to obtain Hi-C contact matrices. The principles of joint normalization will be discussed, along with statistical tests applied to detect statistically significant differences in chromatin interaction frequencies between two or more Hi-C datasets. Participants will learn how to change between various Hi-C data formats. As part of the lab session, participants will perform Hi-C data normalization and generate a list of regions with significanlty different interaction frequencies. We will conclude with examples on how to visualize and interpret the results.
+This is an introductory workshop to comparative Hi-C data analysis. The format of the class consists of an introductory lecture followed by hands-on practical examples. We will outline steps necessary for raw FASTQ data processing to obtain Hi-C contact matrices. The principles of joint normalization will be discussed, along with statistical tests applied to detect statistically significant differences in chromatin interaction frequencies between two or more Hi-C datasets. Participants will learn how to change between various Hi-C data formats. As part of the lab session, participants will perform Hi-C data normalization and generate a list of regions with significantly different interaction frequencies. We will conclude with examples of how to visualize and interpret the results.
 
 ## Pre-requisites
 
 * A computer with internet access 
 * 20 GB of hard drive space
-* Basic knowledge of command line tools
+* Basic knowledge of command-line tools
 * RStudio and basic knowledge of R syntax
 * Installed relevant R packages, as listed below
 
@@ -45,7 +45,7 @@ Hi-C comparative analysis:
 
 * FIND
 
-__Please make sure you have these packages installed prior to the beginning of the workshop.__
+__Please make sure you have these packages installed before the beginning of the workshop.__
 
 ## Time outline
 
@@ -60,7 +60,7 @@ The workshop will run for 2 hours:
 
 # Workshop goals and objectives
 
-The overall goal of this workshop is to familiarize the participants with the processing of Hi-C data, and show how to integrate multiple Hi-C datasets into a single analysis workflow. The goal is to outline the inherent properties of Hi-C data and how these are exploited to allow for multi-Hi-C data comparisons. We will show how to retrieve Hi-C data from public repositories and switch between different Hi-C formats. The participants will perform normalization of the data, detect regions with differential interaction frequencies and visualize the results. By the end of the tutorial, participants will have enough background information to perform basic analysis of their own Hi-C data.
+The overall goal of this workshop is to familiarize the participants with the processing of Hi-C data, and show how to integrate multiple Hi-C datasets into a single analysis workflow. The goal is to outline the inherent properties of Hi-C data and how these are exploited to allow for multi-Hi-C data comparisons. We will show how to retrieve Hi-C data from public repositories and switch between different Hi-C formats. The participants will perform normalization of the data, detect regions with differential interaction frequencies, and visualize the results. By the end of the tutorial, participants will have enough background information to perform basic analysis of their own Hi-C data.
 
 ## Learning goals
 
@@ -80,7 +80,7 @@ The overall goal of this workshop is to familiarize the participants with the pr
 
 ## Learning objectives
 
-At the conclusion of this workshop, participants will be able to:
+After this workshop, participants will be able to:
 
 * Retrieve Hi-C data from public repositories, e.g., Gene Expression Omnibus (GEO) 
 
