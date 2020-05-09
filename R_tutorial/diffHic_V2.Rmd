@@ -1,0 +1,439 @@
+---
+title: "diffHiC"
+output:
+  word_document: default
+  pdf_document: default
+  html_notebook:
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, error = FALSE, message = FALSE, dpi = 300)
+knitr::opts_chunk$set(dev="CairoPNG")
+```
+
+```{r, echo=FALSE, message=FALSE, results="hide"}
+library(SRAdb) # BiocManager::install('SRAdb')
+library(diffHic) # BiocManager::install('diffHic')
+library(BSgenome.Hsapiens.UCSC.hg19) # BiocManager::install('BSgenome.Hsapiens.UCSC.hg19')
+```
+
+
+## Introduction
+
+`diffHic` is an alternate software pipeline for aligning Hi-C data and identifying differentially interacting chromatin regions (DIRs).  In this protocol, we provide a brief tutorial of `diffHic` for aligning raw Hi-C data and detecting DIRs using the same example data that were used in Protocol 1. `diffHic` recognizes the patterns of restriction enzyme cutting for a more efficient division of the genome. `diffHiC` also provides multiple tools to reduce artifacts and trend biases in the data as well as statistical methods to identify DIRs. More details on the statistical methods and advanced analyses can be found in the edgeR [@Robinson2008] and `diffHic` [@Lun2015] manuals on Bioconductor. `diffHiC` provides a complete pipeline from raw sequencing data to identification of DIRs. However, `diffHic`'s incompatibility with other popular Hi-C raw data processing packages could require the user to perform time consuming alignment steps instead of utilizing pre-processed data. 
+
+## Necessary Resources
+
+### Hardware
+
+A computer with internet access, at least 2TB of free hard drive space (if you wish to run the full pipeline starting with raw data). If you wish to perform the alignment process, a computing cluster is highly recommended. 
+
+### Software
+
+The R (version $\ge$ 3.5.0) programming environment, a Unix based command-line interface (e.g., bash on Linux), bowtie2 (version 2.3), cutadapt (version 1.18), Biopython (version 1.72), Pysam (version 0.15), and a web browser.
+
+### Files
+
+The FASTQ files for the data you will be using. For our example we will cover downloading the necessary files in the following section. Or alternatively if you want to skip the alignment steps you will only need the `.h5` files provided here:
+
+<Links to .h5 files>
+
+
+## Downloading and processing data
+
+Here we use the same datasets that were used in the main text: two normal HCT-116 cells and two HCT-116 cells treated with auxin for 6 hours. The .fastq files can be downloaded using the `SRAdb` package. Note that downloading the raw Hi-C data will require a large amount of storage (~2TB) and alignment will take a lot of computational time. If you wish to skip the raw data processing you can go to the Starting with .h5 files section.
+
+```{r, eval=FALSE}
+# install.packages("BiocManager")
+library(SRAdb) # BiocManager::install('SRAdb')
+library(diffHic) # BiocManager::install('diffHic')
+library(BSgenome.Hsapiens.UCSC.hg19) # BiocManager::install('BSgenome.Hsapiens.UCSC.hg19')
+
+# Get required file for SRAdb for the first time. 
+# After that, we just need to set the path to the downloaded sqlfile if we want to use SRAdb to download data again.
+sqlfile <- getSRAdbFile()
+sqlfile <- file.path("SRAmetadb.sqlite")
+
+sra_con <- dbConnect(SQLite(),sqlfile)
+```
+
+Now we download the .fastq files from the short read archive.
+
+```{r eval=FALSE}
+# Get data, input could be the whole experiment or a specific run. 
+# Save results to individual folders (make folder if it does not exist).
+getSRAfile( c("SRX3222724"), sra_con, fileType = 'fastq', makeDirectory = TRUE, destDir = 'HIC001')
+
+getSRAfile( c("SRX3222725"), sra_con, fileType = 'fastq', makeDirectory = TRUE, destDir = 'HIC002')
+
+getSRAfile( c("SRX3276107"), sra_con, fileType = 'fastq', makeDirectory = TRUE, destDir = 'HIC008')
+
+getSRAfile( c("SRX3276108"), sra_con, fileType = 'fastq', makeDirectory = TRUE, destDir = 'HIC009')
+```
+
+Next we can get the SRA information including the names of the data files.
+
+```{r, eval=FALSE}
+# Get the names of runs and replicates for later data processing
+hc1 <- getSRAinfo("SRX3222724", sra_con)$run
+
+hc2 <- getSRAinfo("SRX3222725", sra_con)$run
+
+hc3 <- getSRAinfo("SRX3276107", sra_con)$run
+
+hc4 <- getSRAinfo("SRX3276108", sra_con)$run
+
+exp <- paste0("HIC00",c(1,2,8,9))
+exp.run <- list(hc1,hc2,hc3,hc4)
+```
+
+After downloading the .fastq files, we can align the reads to the reference genome. You will need bowtie2, cutadapt, and python with the Biopython and pysam packages installed in order to run this step. Additionally you should copy the `presplit_map.py` script to your working directory. The `presplit_map.py` script can be found by running the following command in R.
+
+```{r, eval = FALSE}
+system.file("python", "presplit_map.py", package="diffHic", mustWork=TRUE)
+```
+
+We will need to extract any gzipped files and download the chromosome 1 bowtie index for hg19.
+
+```{bash eval=FALSE}
+# Extract all the gzip files
+gunzip */*.gz
+
+# Bowtie index for chromosome 1 of human genome
+wget ftp://hgdownload.cse.ucsc.edu/goldenPath/hg19/chromosomes/chr1.fa.gz
+
+mkdir hg19
+
+# Build index
+gunzip chr1.fa.gz -d hg19
+cd hg19
+bowtie-build --threads 4 chr1.fa hg19chr1
+cd ..
+```
+
+We are now ready to start the alignment process. Note this should be performed on a computing cluster if you have one available as it is time consuming. 
+```{bash, eval = FALSE} 
+# Fill in the path to the hg19 index files at working/dir/hg19
+export BOWTIE2_INDEXES=/path/to/my/bowtie2/databases/hg19
+
+# Use diffHiC presplit_map.py to generate bam files;
+# cores = is the maximum number of python scripts run at the same time. 
+# Note that users can use the -p option for bowtie and -j option for cutadapt to increase the number of parallel processes in the following code.
+# The python script multiplies the number of threads assigned to bowtie and cutadapt and should not exceed the number of cores.
+
+cores=12
+for filename in HIC001/*_1.fastq; do
+  python presplit_map.py -G hg19chr1 -1 ${filename%_1.fastq}_1.fastq -2 ${filename%_1.fastq}_2.fastq --cmd "bowtie2 -p 4" --cut "cutadapt -j 2" --sig GATC -o ${filename%_1.fastq}.bam &
+  background=( $(jobs -p) )
+  if (( ${#background[@]} == cores )); then
+        wait -n
+  fi
+done
+
+for filename in HIC002/*_1.fastq; do
+  python presplit_map.py -G hg19chr1 -1 ${filename%_1.fastq}_1.fastq -2 ${filename%_1.fastq}_2.fastq --cmd "bowtie2 -p 4" --cut "cutadapt -j 2" --sig GATC -o ${filename%_1.fastq}.bam &
+  background=( $(jobs -p) )
+  if (( ${#background[@]} == cores )); then
+        wait -n
+  fi
+done
+
+for filename in HIC008/*_1.fastq; do
+  python presplit_map.py -G hg19chr1 -1 ${filename%_1.fastq}_1.fastq -2 ${filename%_1.fastq}_2.fastq --cmd "bowtie2 -p 4" --cut "cutadapt -j 2" --sig GATC -o ${filename%_1.fastq}.bam &
+  background=( $(jobs -p) )
+  if (( ${#background[@]} == cores )); then
+        wait -n
+  fi
+done
+
+for filename in HIC009/*_1.fastq; do
+  python presplit_map.py -G hg19chr1 -1 ${filename%_1.fastq}_1.fastq -2 ${filename%_1.fastq}_2.fastq --cmd "bowtie2 -p 4" --cut "cutadapt -j 2" --sig GATC -o ${filename%_1.fastq}.bam &
+  background=( $(jobs -p) )
+  if (( ${#background[@]} == cores )); then
+        wait -n
+  fi
+done
+
+
+```
+
+After executing the above script, you should have 4 folders containing the bam input files for `diffHic`.
+
+## Building the interaction matrix
+
+`diffHic` was designed to use the recognition pattern for the restriction enzyme used in the Hi-C data generation to effectively divide the genome into fragments. The MboI restriction enzyme which cuts at the GATC pattern was used to generate the data for this example. If you are using `diffHic` on an alternate data source you will need to determine the restriction enzyme used and its cut site. The DNA fragments are obtained using `cutGenome()` on the human reference genome.
+
+```{r}
+# Digest genome using MboI resction enzyme
+hs.frag <- cutGenome(BSgenome.Hsapiens.UCSC.hg19, "GATC", 4)
+hs.frag
+```
+
+Next, we can use the function `pairParam()` to generate the reference for `diffHic`. In this tutorial, we will only investigate the DIRs within chromosome 1 by setting the restrict parameter of `pairParam()`. Users can easily expand their analysis to other chromosomes by modifying our example code.
+
+```{r }
+hs.param <- pairParam(hs.frag, restrict = 'chr1')
+hs.param
+```
+
+To proceed, we need to create .h5 files that serve as input for `diffHic`. We can execute the command `preparePairs()` on the bam files in order to create the corresponding .h5 files. Typically, we can execute the command `preparePairs` to create an .h5 file for each bam file (of a run) and then use the command `prunePairs` to remove artifacts that occurred in the experiments. If a sample has multiple runs (multiple .fastq and corresponding .bam files), we will get multiple .h5 files – one for each run. These .h5 files can be combined using `mergePairs()` in order to create a single interaction matrix for a sample.
+
+```{r eval=FALSE}
+ # Data processing for each dataset
+ diagnostics <- list()
+ counted <- list()
+ for (i in 1:4) {
+   cur.exp <- exp[i]
+   for (run in exp.run[[i]]) {
+     run.name <- paste0(cur.exp,"/",run)
+     diagnostics[[run.name]] <- preparePairs(paste0(run.name,".bam"), hs.param, file=paste0(run.name,".h5"), dedup=TRUE, minq=10)
+     counted[[run.name]] <- prunePairs(paste0(run.name,".h5"), hs.param, file.out=paste0(run.name,"_trimmed.h5"),
+                                       max.frag=600, min.inward=1000, min.outward=25000)
+   }
+   mergePairs(files = paste0(cur.exp,"/",paste0(exp.run[[i]],"_trimmed.h5")), paste0(cur.exp,".h5"))
+}
+```
+
+The interaction files (one interaction file per sample) can be combined into a single object using `squareCounts()`.  The boundaries of each bin are rounded to the nearest restriction fragment size. The bin size of 1Mb is often used to get a reasonable number of interactions between bin-pairs.
+
+```{r}
+# Load the .h5 files
+input <- c('HIC001.h5','HIC002.h5','HIC008.h5','HIC009.h5')
+bin.size <- 1e6 # set the bin size
+data <- squareCounts(input, hs.param, width=bin.size, filter=1)
+data
+```
+
+## Starting with .h5 files
+
+If you wish to skip the alignment steps, you may start here with the .h5 files. Download the .h5 files to your working directory. Then you can load the data as follows. If you have already aligned and processed your data from fastq files then you can skip this section. 
+
+```{r, eval = FALSE}
+# Load necessary packages if you have not done so already
+library(diffHic)
+library(BSgenome.Hsapiens.UCSC.hg19)
+
+# Digest genome using MboI resction enzyme
+hs.frag <- cutGenome(BSgenome.Hsapiens.UCSC.hg19, "GATC", 4)
+# Restrict to chr1
+hs.param <- pairParam(hs.frag, restrict = 'chr1')
+
+
+# Load the .h5 files
+input <- c('HIC001.h5','HIC002.h5','HIC008.h5','HIC009.h5')
+# Set the bin size
+bin.size <- 1e6
+data <- squareCounts(input, hs.param, width=bin.size, filter=1)
+```
+
+
+## Data filtering and normalization
+
+You can filter out bin-pairs with low  counts using the average log count per million (logCPM) . Here we set the threshold to the average of a theoretical bin-pair with counts of 5 in all datasets. The bin-pairs with an average lower than the threshold are considered uninteresting and are thus removed.
+
+```{r}
+library(edgeR) # BiocManager::install("edgeR")
+# Get the average logCPM
+ave.ab <- aveLogCPM(asDGEList(data))
+```
+
+```{r, eval=FALSE}
+# Plot histogram of avg logCPM
+hist(ave.ab, xlab="Average abundance", col="grey80", main="")
+```
+
+Fig. 10 displays a histogram of the average logCPM values.
+
+```{r}
+# Set which entries to keep 
+keep <- ave.ab >= aveLogCPM(5, lib.size=mean(data$totals))
+```
+
+```{r}
+# Backup original data
+original.data <- data
+# Remove filtered entries
+data <- data[keep,]
+```
+
+After filtering out bin-pairs with low counts, we should normalize the data from different datasets to avoid trend biases. We will demonstrate trend biases by using MA plots of the data before (Fig. 11) and after (Fig. 12) normalization.
+
+
+```{r, results="hide"}
+library(csaw) # BiocManager::install("csaw")
+
+# Calculate A
+ab <- aveLogCPM(asDGEList(data))
+# Order avg logCPM
+o <- order(ab)
+# Calculate counts per million
+adj.counts <- cpm(asDGEList(data), log=TRUE)
+# Calculate M
+mval <- adj.counts[,3]-adj.counts[,2]
+```
+
+```{r, eval = FALSE}
+# Plot MA plot
+smoothScatter(ab, mval, xlab="A", ylab="M", main="Treated (1) vs. Normal (2)")
+```
+
+```{r}
+# Fit loess curve to MA plot
+fit <- loessFit(x=ab, y=mval)
+```
+
+```{r, eval=FALSE}
+# Add loess fit to MA plot
+lines(ab[o], fit$fitted[o], col="red")
+```
+
+<!-- Fig. 11 shows the MA plot of HIC008 vs HIC002 datasets before normalization. -->
+
+`normOffsets()` can be used on the data to calculate the offsets for our datasets. After applying the `normOffsets()` on the data, the trend biases disappear in the new MA plot (Fig. 12).
+
+```{r}
+# Calculate offsets
+data <- normOffsets(data, type="loess", se.out=TRUE)
+```
+
+However, bin-pairs near the diagonal of the interaction matrix (short range interactions) usually have much larger counts compared to the long range interactions. Therefore, for more accurate normalization, offsets for near diagonal bin-pairs should be calculated separately to avoid a loss of information for the other bin-pairs.
+
+```{r}
+# Filter bins near the diagonal
+neardiag <- filterDiag(data, by.dist=1.5e6)
+# Create offsets matrix with the same dimension as data
+nb.off <- matrix(0, nrow=nrow(data), ncol=ncol(data))
+# Calculate offsets
+nb.off[neardiag] <- normOffsets(data[neardiag,], type="loess", se.out=FALSE)
+nb.off[!neardiag] <- normOffsets(data[!neardiag,], type="loess", se.out=FALSE)
+# Update the offset matrix
+assay(data, "offset") <- nb.off 
+```
+
+
+```{r, results="hide"}
+# Offsets are applied to log2 of count data.
+# 0.5 is added to the counts to prevent an error if count = 0
+# Offsets are calculated using log10 so they are divided by log(2) to convert to base 2. 
+adj.counts <- log2(assay(data) + 0.5) - assay(data, "offset")/log(2) 
+# Calculate M values
+mval <- adj.counts[,3]-adj.counts[,2]
+```
+
+```{r, eval=FALSE}
+# Plot the MA plot
+smoothScatter(ab, mval, xlab="A", ylab="M", main="Treated (1) vs. Normal (2)") 
+```
+
+```{r}
+# Fit the loess curve
+fit <- loessFit(x=ab, y=mval)
+```
+
+```{r, eval=FALSE}
+# Plot the loess fit
+lines(ab[o], fit$fitted[o], col="red")
+```
+
+<!-- Fig. 12 shows the MA plot of HIC008 vs HIC002 datasets after normalization. -->
+
+## Detecting differential interactions and visualization
+
+The differential analysis functions of `diffHiC` are built on `edgeR`’s statistical framework. In `diffHiC`, variability is modeled by estimating the dispersion parameters of the negative-binomial (NB) distribution and quasi-likelihood (QS) dispersion. This is used for hypothesis testing to detect DIRs.
+
+First, we need to specify the design matrix that describes the experimental setup. In the code below, we first specify two groups (normal versus treated) and then convert the data into a DGEList object for analysis with edgeR. The NB dispersion can be estimated using the command `estimateDisp()`. The plot of the biological coefficient of variation is displayed in Fig. 13.
+
+```{r}
+# Set up design matrix
+design <- model.matrix(~factor(c("Normal", "Normal", "Treated", "Treated"))) 
+colnames(design) <- c("Intercept", "Treated")
+```
+
+```{r}
+# Create DGEList
+y <- asDGEList(data)
+```
+
+```{r}
+# Estimate the dispersion
+y <- estimateDisp(y, design)
+```
+
+```{r, eval=FALSE}
+# Plot the biological coefficient of variation
+plotBCV(y)
+```
+
+We can now fit a general linear model (GLM) to the data and plot the QL dispersion (Fig. 14) for our data using the following code.
+
+```{r, results="hide"}
+# Fit GLM
+fit <- glmQLFit(y, design, robust=TRUE)
+```
+
+```{r, eval=FALSE}
+# Plot QL dispersion
+plotQLDisp(fit)
+```
+
+After dispersion estimation, `glmQLFTest()` can be used to perform a quasi-likelihood F-test in order to identify bin-pairs with significant differences. The output of `glmQLFTest()` includes logFC, p-values and FDR-corrected p-values. 
+
+```{r}
+# Perform F test
+result <- glmQLFTest(fit, coef=2)
+# Display results
+topTags(result)
+```
+
+
+The interaction matrices of the differentially interacting regions can be plotted using the `plotPlaid()` function, which requires boundaries from processed data and the raw data from the .h5 files as input (Fig. 15).
+
+```{r, eval=FALSE}
+# Get order of p-values
+o.r <- order(result$table$PValue) 
+# Pick difference to plot
+chosen <- o.r[1]
+# Get genomic region for plotting
+chosen.a1 <- anchors(data[chosen], type="first")
+chosen.a2 <- anchors(data[chosen], type="second")
+expanded1 <- resize(chosen.a1, fix="center", width=bin.size*5)
+expanded2 <- resize(chosen.a2, fix="center", width=bin.size*5)
+```
+
+The color of each pixel in this plot is correlated to the count. In order to prevent large counts from dominating the plot, all counts bigger than the cap set below are set to this maximum value. The cap for the treated sample is calculated from the normal cap by multiplying it with the ratio of total counts from the datasets. 
+
+```{r, eval = FALSE}
+cap.wt <- 200 # Set cap for normal
+cap.t <- cap.wt*data$totals[3]/data$totals[1] # Set cap for treated
+
+# Set up side by side plot of matrix
+par(mfrow=c(1,2))
+# Plot matrix for normal samples
+plotPlaid(input[1], first=expanded1, second=expanded2, max.count=cap.wt,
+width=5e4, param=hs.param, main="Normal")
+rect(start(chosen.a1), start(chosen.a2), end(chosen.a1), end(chosen.a2))
+
+# Plot matrix for treated samples
+plotPlaid(input[3], first=expanded1, second=expanded2, max.count=cap.t,
+width=5e4, param=hs.param, main="Treated")
+rect(start(chosen.a1), start(chosen.a2), end(chosen.a1), end(chosen.a2))
+dev.off()
+```
+
+##REFERENCES 
+1.	MD Robinson and GK Smyth, 2008. "Small sample estimation of negative binomial dispersion with application to SAGE data." Biostatistics 9:321-332.
+2.	ATL Lun and KS Gordon, 2015. "DiffHiC: A Bioconductor package to detect differential genomic interactions in Hi-C Data." BMC Bioinformatics 16:258.
+
+
+# Guidelines for Understanding Results
+
+
+## Basic Protocol 2:
+
+The goal of this protocol is to guide the user through the process of aligning raw Hi-C data into count matrices and detecting differentially interacting regions using `diffHiC`.  The final result from `diffHiC` is a list of DIRs. These DIRs can be visualized using `diffHic`'s included functions or be converted for use in `multiHiCcompare`'s visualization functions. The list of DIRs from `diffHic` should closely resemble the results of `multiHiCcompare` and thus many of the downstream analyses shown in protocol 1 can also be applied to the results of `diffHic`. `diffHic` also provides options for checking the quality of the data, removing artifacts, and correcting for biases. 
+
+
+
+
+

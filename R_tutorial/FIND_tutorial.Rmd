@@ -1,0 +1,116 @@
+---
+title: "FIND tutorial"
+output:
+  pdf_document: default
+  html_document: default
+bibliography: tutorial.bib
+---
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+# Set up the environment
+library(knitr)
+opts_chunk$set(cache.path='cache/', fig.path='img/', cache=F, tidy=F, fig.keep='high', echo=T, dpi=100, warnings=F, message=F, comment=NA, warning=F, results='as.is', fig.width = 10, fig.height = 6, eval = FALSE) #out.width=700, 
+library(pander)
+panderOptions('table.split.table', Inf)
+set.seed(1)
+library(dplyr)
+options(stringsAsFactors = FALSE)
+```
+
+# Introduction
+
+difFerential chromatin INteractions Detection using a spation Poisson process (FIND) is another method for comparing Hi-C data [@Djekidel:2018aa]. FIND was developed with the analysis of high resolution Hi-C data in mind. It uses a spatial Poisson process which consideres local spatial dependencies between interacting regions of the chromatin. FIND can detect differential chromatin interactions that are significantly different in their interaction frequency. In this supplemental tutorial we will perform an example analysis using FIND on the Rao 2017 data [@Rao:2017aa] used in the main tutorial. 
+
+# Installing FIND
+
+FIND's development page is on bitbucket here: https://bitbucket.org/nadhir/find. We can download the source R package from the downloads section of the page.
+
+
+```{bash, eval = FALSE}
+wget https://bitbucket.org/nadhir/find/downloads/FIND_0.99.tar.gz
+```
+
+We now need to install FIND in R. First make sure you have all dependencies installed and then you can install FIND from the source package.
+
+```{r, eval = FALSE}
+# Install dependencies
+install.packages(c("Rcpp", "RcppEigen", "Matrix", "bigmemory", "data.table", "doParallel", "quantreg", "png", "dplyr"))
+BiocManager::install(c("HiTC", "zlibbioc"))
+
+# Install FIND from source
+install.packages("FIND_0.99.tar.gz", repos = NULL, type="source")
+
+library(FIND)
+```
+
+# Extracting the data 
+
+Now we will need to obtain the data we will use for this example. Assuming you have already downloaded the `.hic` files used in the main tutorial we will just need to extract the matrices at 5KB resolution. We will focus this analysis on only chromosome 18 for demonstration purposes. We will also extract the Knight-Ruiz normalized matrices from the files, as recommended by the FIND paper [@Djekidel:2018aa]. 
+
+```{bash, eval = FALSE}
+./straw KR GSM2795535_Rao-2017-HIC001_30.hic 18 18 BP 5000 > HIC001/HIC001.KR.chr18.5000.txt
+./straw KR GSM2795536_Rao-2017-HIC002_30.hic 18 18 BP 5000 > HIC002/HIC002.KR.chr18.5000.txt
+./straw KR GSM2809539_Rao-2017-HIC008_30.hic 18 18 BP 5000 > HIC008/HIC008.KR.chr18.5000.txt
+./straw KR GSM2809540_Rao-2017-HIC009_30.hic 18 18 BP 5000 > HIC009/HIC009.KR.chr18.5000.txt
+```
+
+
+We can now read the data into R.
+
+
+```{r}
+library(readr) # BiocManager::install("readr")
+
+hic001 <- read_tsv("HIC001/HIC001.KR.chr18.5000.txt", col_names = FALSE)
+hic002 <- read_tsv("HIC002/HIC002.KR.chr18.5000.txt", col_names = FALSE)
+hic008 <- read_tsv("HIC008/HIC008.KR.chr18.5000.txt", col_names = FALSE)
+hic009 <- read_tsv("HIC009/HIC009.KR.chr18.5000.txt", col_names = FALSE)
+```
+
+# Use FIND to compare datasets
+
+FIND operates on `dgCMatrix` objects so we will need to convert our sparse matrices into this format. 
+
+```{r}
+library(Matrix) # BiocManager::install("Matrix")
+library(mvtnorm) # BiocManager::install("mvtnorm")
+library(rasterVis) # BiocManager::install("rasterVis")
+library(gridExtra) # BiocManager::install("gridExtra")
+library(HiTC) # BiocManager::install("HiTC")
+library(edgeR) # BiocManager::install("edgeR")
+library(ggsci) # BiocManager::install("ggsci")
+library(HiCcompare) # BiocManager::install("HiCcompare") # devtools::install_github('dozmorovlab/HiCcompare', build_vignettes = TRUE, force = TRUE)
+
+# Convert sparse matrices to full
+hic001 <- sparse2full(hic001)
+hic002 <- sparse2full(hic002)
+hic008 <- sparse2full(hic008)
+hic009 <- sparse2full(hic009)
+
+# Convert to dgCMatrix format
+hic001 <- as(hic001, "dgCMatrix")
+hic002 <- as(hic002, "dgCMatrix")
+hic008 <- as(hic008, "dgCMatrix")
+hic009 <- as(hic009, "dgCMatrix")
+
+
+# Make a list of the matrices for the two groups
+control <- list(hic001, hic002)
+auxin <- list(hic008, hic009)
+```
+
+We are now ready to enter the data into FIND. However, due to long running time even on chromosome 18 (>150 hours), the output is not provided in this tutorial.
+
+```{r, eval = FALSE}
+DCis <- getDCIs_fromMat(control, auxin, windowSize = 3, 
+                        alpha = 0.7, method = "hardCutof", qvalue = 1e-06, isrOP_qval = FALSE)
+```
+
+
+```{r}
+load("DCis.RDA")
+```
+
+
+# References
+
